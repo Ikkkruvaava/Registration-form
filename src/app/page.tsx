@@ -41,25 +41,48 @@ export default function Home() {
 
   const handleDownloadPDF = async () => {
     if (typeof window === 'undefined') return;
-    const html2pdf = (await import('html2pdf.js')).default;
     const element = formRef.current;
     if (!element) return;
 
-    // Strip input chrome before capturing
+    // Dynamically import both libraries
+    const [{ jsPDF }, html2canvas] = await Promise.all([
+      import('jspdf'),
+      import('html2canvas').then(m => m.default),
+    ]);
+
+    // ── Layer 1: Original image at full resolution ──────────────────────────
+    // Fetch the source image and embed it directly in the PDF
+    // This preserves 100% original quality — no canvas rasterization
+    const imgRes  = await fetch('/image/FormFrame.jpeg');
+    const imgBlob = await imgRes.blob();
+    const imgBase64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(imgBlob);
+    });
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    pdf.addImage(imgBase64, 'JPEG', 0, 0, 210, 297);
+
+    // ── Layer 2: Text-only overlay ──────────────────────────────────────────
+    // Capture just the input text at high scale with transparent background
     element.classList.add('pdf-mode');
 
-    const opt = {
-      margin: 0,
-      filename: `Registration_${formData['studentName'] || 'Form'}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
-    };
+    const canvas = await html2canvas(element, {
+      scale: 4,                  // high DPI for crisp text
+      useCORS: true,
+      backgroundColor: null,     // transparent — only text renders
+      logging: false,
+      imageTimeout: 0,
+    });
 
-    await html2pdf().set(opt).from(element).save();
-
-    // Restore input chrome after PDF is saved
     element.classList.remove('pdf-mode');
+
+    // Add text layer on top of the background image
+    const textData = canvas.toDataURL('image/png');
+    pdf.addImage(textData, 'PNG', 0, 0, 210, 297);
+
+    pdf.save(`Registration_${formData['studentName'] || 'Form'}.pdf`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
