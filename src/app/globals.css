@@ -137,3 +137,21 @@ body {
     border: none !important;
   }
 }
+
+/* ── PDF capture mode ──────────────────────────────────────────────────────
+   Applied programmatically before html2pdf captures the DOM.
+   Hides all input chrome — only the user's typed text appears in the PDF.
+──────────────────────────────────────────────────────────────────────────── */
+.pdf-mode {
+  box-shadow: none !important;
+}
+
+.pdf-mode input,
+.pdf-mode textarea {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: currentColor; /* prevents Safari from graying out disabled/readonly inputs */
+}

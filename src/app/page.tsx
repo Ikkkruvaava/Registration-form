@@ -44,6 +44,10 @@ export default function Home() {
     const html2pdf = (await import('html2pdf.js')).default;
     const element = formRef.current;
     if (!element) return;
+
+    // Strip input chrome before capturing
+    element.classList.add('pdf-mode');
+
     const opt = {
       margin: 0,
       filename: `Registration_${formData['studentName'] || 'Form'}.pdf`,
@@ -51,7 +55,11 @@ export default function Home() {
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
     };
-    html2pdf().set(opt).from(element).save();
+
+    await html2pdf().set(opt).from(element).save();
+
+    // Restore input chrome after PDF is saved
+    element.classList.remove('pdf-mode');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
