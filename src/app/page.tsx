@@ -5,45 +5,36 @@ import Link from 'next/link';
 import { Download, Printer, Save, Settings } from 'lucide-react';
 import { DEFAULT_FIELDS, FieldDef } from '@/lib/fieldDefs';
 
+function hexToRgba(hex: string, opacity: number) {
+  if (!hex || hex.length < 7) return 'transparent';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${opacity / 100})`;
+}
+
 export default function Home() {
   const formRef = useRef<HTMLDivElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [fields, setFields] = useState<FieldDef[]>([...DEFAULT_FIELDS]);
 
-  // Load field positions from API (set by dashboard)
   useEffect(() => {
     fetch('/api/field-config')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.fields && Array.isArray(data.fields)) {
-          setFields(data.fields);
+      .then(r => r.json())
+      .then(data => {
+        if (data.fields && Array.isArray(data.fields) && data.fields.length > 0) {
+          setFields(data.fields.map((f: Partial<FieldDef>) => ({ ...DEFAULT_FIELDS[0], ...f })));
         }
       })
-      .catch(() => {/* use defaults */ });
+      .catch(() => {});
   }, []);
 
-  const [formData, setFormData] = useState<Record<string, string>>({
-    registrationNumber: '',
-    studentName: '',
-    dob: '',
-    address: '',
-    fatherName: '',
-    fatherPhone: '',
-    guardianName: '',
-    guardianPhone: '',
-    guardianJob: '',
-    institutes: '',
-    teachers: '',
-    booksLearned: '',
-    secularEducation: '',
-    date: '',
-    place: '',
-  });
+  const [formData, setFormData] = useState<Record<string, string>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handlePrint = () => window.print();
@@ -55,7 +46,7 @@ export default function Home() {
     if (!element) return;
     const opt = {
       margin: 0,
-      filename: `Registration_${formData.studentName || 'Form'}.pdf`,
+      filename: `Registration_${formData['studentName'] || 'Form'}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
@@ -74,11 +65,8 @@ export default function Home() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (res.ok) {
-        setSuccess('تم حفظ البيانات بنجاح!');
-      } else {
-        alert(data.message || 'حدث خطأ أثناء الحفظ');
-      }
+      if (res.ok) setSuccess('تم حفظ البيانات بنجاح!');
+      else alert(data.message || 'حدث خطأ أثناء الحفظ');
     } catch {
       alert('حدث خطأ في الاتصال بالخادم');
     } finally {
@@ -86,26 +74,42 @@ export default function Home() {
     }
   };
 
+  const inputStyle = (field: FieldDef): React.CSSProperties => ({
+    position: 'absolute',
+    top: `${field.top}%`,
+    left: `${field.left}%`,
+    width: `${field.width}%`,
+    height: `${field.height}%`,
+    fontSize: field.fontSize,
+    fontFamily: field.fontFamily,
+    fontWeight: field.fontWeight,
+    fontStyle: field.fontStyle,
+    textDecoration: field.textDecoration,
+    textAlign: field.textAlign,
+    color: field.color,
+    backgroundColor: field.bgOpacity > 0 ? hexToRgba(field.bgColor, field.bgOpacity) : 'transparent',
+    border: field.borderStyle === 'none' ? 'none'
+      : `${field.borderWidth}px ${field.borderStyle} ${field.borderColor}`,
+    borderRadius: field.borderRadius,
+    direction: field.dir,
+    outline: 'none',
+    padding: '2px 6px',
+    resize: 'none',
+    background: field.bgOpacity > 0 ? hexToRgba(field.bgColor, field.bgOpacity) : 'transparent',
+  });
+
   return (
     <div className="app-container">
       {success && (
-        <div style={{ backgroundColor: '#d4edda', color: '#155724', padding: '15px', borderRadius: '5px', marginBottom: '20px', textAlign: 'center', fontWeight: 'bold' }}>
+        <div style={{ backgroundColor: '#d4edda', color: '#155724', padding: '14px', borderRadius: '6px', marginBottom: '16px', textAlign: 'center', fontWeight: 'bold' }}>
           {success}
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
         <div className="paper" ref={formRef}>
-          {fields.map((field) => {
-            const style: React.CSSProperties = {
-              top: `${field.top}%`,
-              left: `${field.left}%`,
-              width: `${field.width}%`,
-              height: `${field.height}%`,
-              fontSize: field.fontSize,
-              direction: field.dir || 'rtl',
-            };
-
+          {fields.map(field => {
+            const style = inputStyle(field);
             if (field.type === 'textarea') {
               return (
                 <textarea
@@ -113,12 +117,11 @@ export default function Home() {
                   name={field.id}
                   value={formData[field.id] ?? ''}
                   onChange={handleChange}
-                  className="form-overlay-input"
-                  style={{ ...style, resize: 'none' }}
+                  placeholder={field.placeholder}
+                  style={style}
                 />
               );
             }
-
             return (
               <input
                 key={field.id}
@@ -126,9 +129,9 @@ export default function Home() {
                 name={field.id}
                 value={formData[field.id] ?? ''}
                 onChange={handleChange}
-                className="form-overlay-input"
-                style={style}
+                placeholder={field.placeholder}
                 dir={field.dir}
+                style={style}
               />
             );
           })}
@@ -136,22 +139,22 @@ export default function Home() {
 
         <div className="actions">
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            <Save size={20} />
+            <Save size={18} />
             {isSubmitting ? 'جاري الحفظ...' : 'حفظ البيانات'}
           </button>
 
           <Link href="/dashboard" className="btn btn-primary" style={{ backgroundColor: '#6366f1', textDecoration: 'none' }}>
-            <Settings size={20} />
+            <Settings size={18} />
             لوحة التحكم
           </Link>
 
           <button type="button" onClick={handlePrint} className="btn btn-secondary">
-            <Printer size={20} />
+            <Printer size={18} />
             طباعة
           </button>
 
           <button type="button" onClick={handleDownloadPDF} className="btn btn-primary" style={{ backgroundColor: '#E3342F' }}>
-            <Download size={20} />
+            <Download size={18} />
             تحميل PDF
           </button>
         </div>
